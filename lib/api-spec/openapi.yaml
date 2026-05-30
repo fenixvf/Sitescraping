@@ -25,7 +25,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -42,32 +41,22 @@ paths:
       parameters:
         - in: query
           name: page
-          schema:
-            type: integer
-            default: 1
+          schema: { type: integer, default: 1 }
         - in: query
           name: limit
-          schema:
-            type: integer
-            default: 20
+          schema: { type: integer, default: 20 }
         - in: query
           name: tag
-          schema:
-            type: string
+          schema: { type: string }
         - in: query
           name: status
-          schema:
-            type: string
-            enum: [active, broken, unknown]
+          schema: { type: string, enum: [active, broken, unknown] }
         - in: query
           name: source_type
-          schema:
-            type: string
-            enum: [cdn, platform, storage, selfhosted]
+          schema: { type: string, enum: [cdn, platform, storage, selfhosted] }
         - in: query
           name: folder_id
-          schema:
-            type: integer
+          schema: { type: integer }
       responses:
         "200":
           description: List of videos
@@ -108,8 +97,7 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: integer
+          schema: { type: integer }
       responses:
         "200":
           description: Video details
@@ -131,8 +119,7 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: integer
+          schema: { type: integer }
       requestBody:
         required: true
         content:
@@ -160,8 +147,7 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: integer
+          schema: { type: integer }
       responses:
         "204":
           description: Deleted
@@ -181,8 +167,7 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: integer
+          schema: { type: integer }
       responses:
         "200":
           description: Video stats
@@ -244,8 +229,7 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: integer
+          schema: { type: integer }
       requestBody:
         required: true
         content:
@@ -273,8 +257,7 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: integer
+          schema: { type: integer }
       responses:
         "204":
           description: Deleted
@@ -302,7 +285,7 @@ paths:
     get:
       operationId: getStatsSummary
       tags: [stats]
-      summary: Dashboard summary - totals and breakdown by status
+      summary: Dashboard summary
       responses:
         "200":
           description: Summary stats
@@ -334,9 +317,7 @@ paths:
       parameters:
         - in: query
           name: limit
-          schema:
-            type: integer
-            default: 20
+          schema: { type: integer, default: 20 }
       responses:
         "200":
           description: Recent activity log
@@ -351,47 +332,35 @@ components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
     Folder:
       type: object
       required: [id, name, color, created_at, video_count]
       properties:
-        id:
-          type: integer
-        name:
-          type: string
-        color:
-          type: string
-        video_count:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
+        id: { type: integer }
+        name: { type: string }
+        color: { type: string }
+        video_count: { type: integer }
+        created_at: { type: string, format: date-time }
 
     FolderInput:
       type: object
       required: [name]
       properties:
-        name:
-          type: string
-        color:
-          type: string
+        name: { type: string }
+        color: { type: string }
 
     Video:
       type: object
       required: [id, slug, title, source_type, status, proxy_url, created_at, updated_at]
       properties:
-        id:
-          type: integer
-        slug:
-          type: string
-        title:
-          type: string
+        id: { type: integer }
+        slug: { type: string }
+        title: { type: string }
         source_type:
           type: string
           enum: [cdn, platform, storage, selfhosted]
@@ -404,49 +373,53 @@ components:
           type: ["integer", "null"]
         tags:
           type: array
-          items:
-            type: string
+          items: { type: string }
         fallback_url:
           type: ["string", "null"]
+        refresh_url:
+          type: ["string", "null"]
+          description: "Endpoint called to get a fresh URL when url_expires_at is past"
+        url_expires_at:
+          type: ["string", "null"]
+          format: date-time
+          description: "When the cached URL expires. Null means static/never expires."
+        url_refreshed_at:
+          type: ["string", "null"]
+          format: date-time
+          description: "When the URL was last auto-refreshed"
         folder_id:
           type: ["integer", "null"]
-        proxy_url:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+        proxy_url: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     VideoInput:
       type: object
       required: [url]
       properties:
-        url:
-          type: string
-          format: uri
-        title:
-          type: string
+        url: { type: string, format: uri }
+        title: { type: string }
         tags:
           type: array
-          items:
-            type: string
+          items: { type: string }
         fallback_url:
           type: ["string", "null"]
+        refresh_url:
+          type: ["string", "null"]
+          description: "Endpoint that returns a fresh URL (JSON {url,expires_in} or plain text)"
         folder_id:
           type: ["integer", "null"]
 
     VideoUpdate:
       type: object
       properties:
-        title:
-          type: string
+        title: { type: string }
         tags:
           type: array
-          items:
-            type: string
+          items: { type: string }
         fallback_url:
+          type: ["string", "null"]
+        refresh_url:
           type: ["string", "null"]
         status:
           type: string
@@ -462,25 +435,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Video"
-        total:
-          type: integer
-        page:
-          type: integer
-        limit:
-          type: integer
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
 
     VideoStats:
       type: object
       required: [id, slug, title, total_requests, recent_accesses]
       properties:
-        id:
-          type: integer
-        slug:
-          type: string
-        title:
-          type: string
-        total_requests:
-          type: integer
+        id: { type: integer }
+        slug: { type: string }
+        title: { type: string }
+        total_requests: { type: integer }
         bytes_served:
           type: ["integer", "null"]
         last_accessed:
@@ -495,82 +461,57 @@ components:
       type: object
       required: [id, accessed_at]
       properties:
-        id:
-          type: integer
-        ip:
-          type: ["string", "null"]
-        user_agent:
-          type: ["string", "null"]
-        bytes:
-          type: ["integer", "null"]
-        accessed_at:
-          type: string
-          format: date-time
+        id: { type: integer }
+        ip: { type: ["string", "null"] }
+        user_agent: { type: ["string", "null"] }
+        bytes: { type: ["integer", "null"] }
+        accessed_at: { type: string, format: date-time }
 
     SyncResult:
       type: object
       required: [total, synced, failed, started_at]
       properties:
-        total:
-          type: integer
-        synced:
-          type: integer
-        failed:
-          type: integer
-        started_at:
-          type: string
-          format: date-time
+        total: { type: integer }
+        synced: { type: integer }
+        failed: { type: integer }
+        started_at: { type: string, format: date-time }
 
     StatsSummary:
       type: object
       required: [total, active, broken, unknown, total_requests]
       properties:
-        total:
-          type: integer
-        active:
-          type: integer
-        broken:
-          type: integer
-        unknown:
-          type: integer
-        total_requests:
-          type: integer
+        total: { type: integer }
+        active: { type: integer }
+        broken: { type: integer }
+        unknown: { type: integer }
+        total_requests: { type: integer }
 
     TypeBreakdown:
       type: object
       required: [source_type, count]
       properties:
-        source_type:
-          type: string
-        count:
-          type: integer
+        source_type: { type: string }
+        count: { type: integer }
 
     ActivityEvent:
       type: object
       required: [id, event_type, slug, title, occurred_at]
       properties:
-        id:
-          type: integer
+        id: { type: integer }
         event_type:
           type: string
           enum: [proxy_access, sync_ok, sync_broken, sync_redirected]
-        slug:
-          type: string
-        title:
-          type: string
+        slug: { type: string }
+        title: { type: string }
         detail:
           type: ["string", "null"]
-        occurred_at:
-          type: string
-          format: date-time
+        occurred_at: { type: string, format: date-time }
 
     ApiError:
       type: object
       required: [error, code]
       properties:
-        error:
-          type: string
-        code:
-          type: string
+        error: { type: string }
+        code: { type: string }
         suggestion:
           type: ["string", "null"]

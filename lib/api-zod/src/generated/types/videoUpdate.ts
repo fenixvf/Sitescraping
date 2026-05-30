@@ -12,6 +12,8 @@ export interface VideoUpdate {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /** @nullable */
+  refresh_url?: string | null;
   status?: VideoUpdateStatus;
   /** @nullable */
   folder_id?: number | null;

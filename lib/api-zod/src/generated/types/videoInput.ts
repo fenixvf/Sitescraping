@@ -12,6 +12,11 @@ export interface VideoInput {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /**
+     * Endpoint that returns a fresh URL (JSON {url,expires_in} or plain text)
+     * @nullable
+     */
+  refresh_url?: string | null;
   /** @nullable */
   folder_id?: number | null;
 }

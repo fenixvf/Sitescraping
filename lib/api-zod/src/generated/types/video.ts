@@ -21,6 +21,21 @@ export interface Video {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /**
+     * Endpoint called to get a fresh URL when url_expires_at is past
+     * @nullable
+     */
+  refresh_url?: string | null;
+  /**
+     * When the cached URL expires. Null means static/never expires.
+     * @nullable
+     */
+  url_expires_at?: Date | null;
+  /**
+     * When the URL was last auto-refreshed
+     * @nullable
+     */
+  url_refreshed_at?: Date | null;
   /** @nullable */
   folder_id?: number | null;
   proxy_url: string;

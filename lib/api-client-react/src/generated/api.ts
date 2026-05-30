@@ -58,7 +58,6 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -947,7 +946,7 @@ export const getGetStatsSummaryUrl = () => {
 }
 
 /**
- * @summary Dashboard summary - totals and breakdown by status
+ * @summary Dashboard summary
  */
 export const getStatsSummary = async ( options?: RequestInit): Promise<StatsSummary> => {
 
@@ -994,7 +993,7 @@ export type GetStatsSummaryQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Dashboard summary - totals and breakdown by status
+ * @summary Dashboard summary
  */
 
 export function useGetStatsSummary<TData = Awaited<ReturnType<typeof getStatsSummary>>, TError = ErrorType<unknown>>(

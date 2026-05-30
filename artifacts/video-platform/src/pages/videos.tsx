@@ -5,7 +5,6 @@ import {
   getListVideosQueryKey,
   useCreateVideo,
   useDeleteVideo,
-  useUpdateVideo,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Plus, Trash2, ExternalLink, Check, FolderOpen } from "lucide-react";
+import { Copy, Plus, Trash2, ExternalLink, Check, FolderOpen, RefreshCw, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { useFolderContext } from "@/components/layout/layout";
@@ -33,6 +32,18 @@ const SOURCE_STYLES: Record<string, string> = {
   storage: "bg-amber-500/15 text-amber-300",
   selfhosted: "bg-slate-500/15 text-slate-300",
 };
+
+function formatExpiry(expiresAt: string | null | undefined): string | null {
+  if (!expiresAt) return null;
+  const d = new Date(expiresAt);
+  const diff = d.getTime() - Date.now();
+  if (diff < 0) return "Expirado";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `Expira em ${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Expira em ${hrs}h`;
+  return `Expira em ${Math.floor(hrs / 24)}d`;
+}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -53,6 +64,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
+  const [refreshUrl, setRefreshUrl] = useState("");
   const [folderId, setFolderId] = useState<string>(defaultFolderId ? String(defaultFolderId) : "none");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -65,7 +77,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
         queryClient.invalidateQueries();
         toast({ title: "Vídeo registrado", description: `Proxy: ${video.proxy_url}` });
         setOpen(false);
-        setUrl(""); setTitle(""); setTags("");
+        setUrl(""); setTitle(""); setTags(""); setRefreshUrl("");
       },
       onError: () => toast({ title: "Erro ao registrar vídeo", variant: "destructive" }),
     },
@@ -79,6 +91,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
         url,
         title: title || undefined,
         tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        refresh_url: refreshUrl || null,
         folder_id: folderId !== "none" ? Number(folderId) : null,
       },
     });
@@ -99,7 +112,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="url">URL *</Label>
+            <Label htmlFor="url">URL inicial *</Label>
             <Input
               id="url"
               value={url}
@@ -107,6 +120,22 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
               placeholder="https://example.com/video.mp4"
               required
             />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <RefreshCw className="w-3.5 h-3.5 text-primary" />
+              <Label htmlFor="refresh_url">URL de Refresh <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            </div>
+            <Input
+              id="refresh_url"
+              value={refreshUrl}
+              onChange={(e) => setRefreshUrl(e.target.value)}
+              placeholder="https://seu-backend.com/get-link"
+            />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Quando o link expirar, o proxy chama essa URL e pega o link novo.
+              Responda com <code className="bg-secondary px-1 rounded">{"{ url, expires_in }"}</code> (JSON) ou o link direto.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="title">Título</Label>
@@ -157,13 +186,21 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
 }
 
 function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
+  const expiry = formatExpiry(video.url_expires_at);
+  const isDynamic = !!video.refresh_url;
+
   return (
     <div className="border border-border rounded-lg p-4 space-y-3 bg-card hover:bg-card/80 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <Link href={`/videos/${video.id}`}>
-            <p className="text-sm font-medium hover:text-primary cursor-pointer truncate">{video.title}</p>
-          </Link>
+          <div className="flex items-center gap-1.5">
+            <Link href={`/videos/${video.id}`}>
+              <p className="text-sm font-medium hover:text-primary cursor-pointer truncate">{video.title}</p>
+            </Link>
+            {isDynamic && (
+              <RefreshCw className="w-3 h-3 text-primary shrink-0" title="Auto-refresh ativo" />
+            )}
+          </div>
           <span className="font-mono text-[10px] text-muted-foreground">{video.slug}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -188,6 +225,15 @@ function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
         <Badge className={cn("text-[10px] font-mono capitalize border", STATUS_STYLES[video.status])}>
           {video.status}
         </Badge>
+        {expiry && (
+          <span className={cn(
+            "flex items-center gap-1 text-[10px] font-mono",
+            expiry === "Expirado" ? "text-red-400" : "text-amber-400"
+          )}>
+            <Clock className="w-2.5 h-2.5" />
+            {expiry}
+          </span>
+        )}
         {video.tags?.map((tag: string) => (
           <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary rounded font-mono">{tag}</span>
         ))}
@@ -248,10 +294,7 @@ export default function VideosList() {
           <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
             {data?.total ?? "—"} vídeos registrados
             {activeFolder && (
-              <button
-                onClick={() => setActiveFolderId(null)}
-                className="ml-2 text-primary hover:underline"
-              >
+              <button onClick={() => setActiveFolderId(null)} className="ml-2 text-primary hover:underline">
                 Ver todos
               </button>
             )}
@@ -344,8 +387,8 @@ export default function VideosList() {
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Título</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Tipo</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Status</th>
+              <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Expiração</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Proxy URL</th>
-              <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Tags</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground"></th>
             </tr>
           </thead>
@@ -365,64 +408,69 @@ export default function VideosList() {
                 </td>
               </tr>
             ) : (
-              data?.videos.map((video) => (
-                <tr
-                  key={video.id}
-                  className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-muted-foreground">{video.slug}</span>
-                  </td>
-                  <td className="px-4 py-3 max-w-[180px]">
-                    <Link href={`/videos/${video.id}`}>
-                      <span className="text-xs hover:text-primary cursor-pointer truncate block">{video.title}</span>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge className={cn("text-[10px] font-mono uppercase border-0", SOURCE_STYLES[video.source_type])}>
-                      {video.source_type}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge className={cn("text-[10px] font-mono capitalize border", STATUS_STYLES[video.status])}>
-                      {video.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 max-w-[200px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[10px] text-muted-foreground truncate">{video.proxy_url}</span>
-                      <CopyButton text={video.proxy_url} />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1 flex-wrap">
-                      {video.tags?.slice(0, 2).map((tag: string) => (
-                        <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary rounded font-mono">{tag}</span>
-                      ))}
-                      {(video.tags?.length ?? 0) > 2 && (
-                        <span className="text-[10px] text-muted-foreground">+{(video.tags?.length ?? 0) - 2}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
+              data?.videos.map((video) => {
+                const expiry = formatExpiry(video.url_expires_at);
+                const isDynamic = !!video.refresh_url;
+                return (
+                  <tr key={video.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs text-muted-foreground">{video.slug}</span>
+                    </td>
+                    <td className="px-4 py-3 max-w-[180px]">
                       <Link href={`/videos/${video.id}`}>
-                        <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
+                        <span className="text-xs hover:text-primary cursor-pointer truncate flex items-center gap-1">
+                          {video.title}
+                          {isDynamic && <RefreshCw className="w-2.5 h-2.5 text-primary shrink-0" />}
+                        </span>
                       </Link>
-                      <button
-                        className="p-1 text-muted-foreground hover:text-red-400 transition-colors"
-                        onClick={() => {
-                          if (confirm("Deletar este vídeo?")) deleteVideo.mutate({ id: video.id });
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={cn("text-[10px] font-mono uppercase border-0", SOURCE_STYLES[video.source_type])}>
+                        {video.source_type}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={cn("text-[10px] font-mono capitalize border", STATUS_STYLES[video.status])}>
+                        {video.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {expiry ? (
+                        <span className={cn(
+                          "flex items-center gap-1 text-[10px] font-mono",
+                          expiry === "Expirado" ? "text-red-400" : "text-amber-400"
+                        )}>
+                          <Clock className="w-2.5 h-2.5" />
+                          {expiry}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 max-w-[200px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] text-muted-foreground truncate">{video.proxy_url}</span>
+                        <CopyButton text={video.proxy_url} />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <Link href={`/videos/${video.id}`}>
+                          <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        </Link>
+                        <button
+                          className="p-1 text-muted-foreground hover:text-red-400 transition-colors"
+                          onClick={() => { if (confirm("Deletar este vídeo?")) deleteVideo.mutate({ id: video.id }); }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

@@ -1,9 +1,9 @@
 import { db, videosTable, syncLogsTable } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { logger } from "./logger";
+import { isExpired, refreshVideoUrl } from "./refresh";
 
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS) || 8000;
-const MAX_REDIRECTS = Number(process.env.MAX_REDIRECTS) || 5;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
 async function fireWebhook(payload: object): Promise<void> {
@@ -70,11 +70,39 @@ export async function syncAllVideos(): Promise<{ total: number; synced: number; 
   let failed = 0;
 
   for (const video of videos) {
-    const result = await checkUrl(video.url);
+    // ── Step 1: refresh expired dynamic URLs before checking ────────────────
+    let urlToCheck = video.url;
+
+    if (video.refresh_url && isExpired(video.url_expires_at)) {
+      try {
+        logger.info({ slug: video.slug }, "Sync: refreshing expired URL");
+        urlToCheck = await refreshVideoUrl({
+          id: video.id,
+          slug: video.slug,
+          refresh_url: video.refresh_url,
+        });
+
+        await db.insert(syncLogsTable).values({
+          video_id: video.id,
+          event_type: "sync_ok",
+          detail: "URL auto-refreshed via refresh_url",
+        });
+
+        synced++;
+        continue; // Skip the HEAD check — we already confirmed it works
+      } catch (err) {
+        logger.warn({ slug: video.slug, err }, "Sync: URL refresh failed");
+        // Fall through to the normal HEAD check with the old URL
+      }
+    }
+
+    // ── Step 2: HEAD-check the (possibly stale) URL ──────────────────────────
+    const result = await checkUrl(urlToCheck);
 
     if (result.ok) {
       const updates: Partial<typeof videosTable.$inferInsert> = { status: "active" };
-      if (result.finalUrl) updates.url = result.finalUrl;
+      // Only overwrite url if there's no refresh_url controlling it
+      if (result.finalUrl && !video.refresh_url) updates.url = result.finalUrl;
       if (result.contentType) updates.mime_type = result.contentType;
       if (result.contentLength) updates.content_length = result.contentLength;
 
@@ -88,20 +116,12 @@ export async function syncAllVideos(): Promise<{ total: number; synced: number; 
       });
 
       if (result.finalUrl) {
-        await fireWebhook({
-          event: "sync_redirected",
-          id: video.id,
-          slug: video.slug,
-          url: result.finalUrl,
-        });
+        await fireWebhook({ event: "sync_redirected", id: video.id, slug: video.slug, url: result.finalUrl });
       }
 
       synced++;
     } else {
-      await db
-        .update(videosTable)
-        .set({ status: "broken" })
-        .where(eq(videosTable.id, video.id));
+      await db.update(videosTable).set({ status: "broken" }).where(eq(videosTable.id, video.id));
 
       await db.insert(syncLogsTable).values({
         video_id: video.id,
@@ -109,12 +129,7 @@ export async function syncAllVideos(): Promise<{ total: number; synced: number; 
         detail: `HTTP ${result.status ?? "timeout/error"}`,
       });
 
-      await fireWebhook({
-        event: "sync_broken",
-        id: video.id,
-        slug: video.slug,
-        url: video.url,
-      });
+      await fireWebhook({ event: "sync_broken", id: video.id, slug: video.slug, url: video.url });
 
       failed++;
     }
