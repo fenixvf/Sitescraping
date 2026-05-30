@@ -65,6 +65,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [refreshUrl, setRefreshUrl] = useState("");
+  const [mirrorUrls, setMirrorUrls] = useState("");
   const [folderId, setFolderId] = useState<string>(defaultFolderId ? String(defaultFolderId) : "none");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -77,7 +78,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
         queryClient.invalidateQueries();
         toast({ title: "Vídeo registrado", description: `Proxy: ${video.proxy_url}` });
         setOpen(false);
-        setUrl(""); setTitle(""); setTags(""); setRefreshUrl("");
+        setUrl(""); setTitle(""); setTags(""); setRefreshUrl(""); setMirrorUrls("");
       },
       onError: () => toast({ title: "Erro ao registrar vídeo", variant: "destructive" }),
     },
@@ -92,6 +93,7 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
         title: title || undefined,
         tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         refresh_url: refreshUrl || null,
+        mirror_urls: mirrorUrls ? mirrorUrls.split("\n").map((u) => u.trim()).filter(Boolean) : [],
         folder_id: folderId !== "none" ? Number(folderId) : null,
       },
     });
@@ -154,6 +156,20 @@ function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }
               onChange={(e) => setTags(e.target.value)}
               placeholder="esportes, 4k, ao vivo"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mirror_urls">URLs Espelho <span className="text-muted-foreground font-normal">(opcional, uma por linha)</span></Label>
+            <textarea
+              id="mirror_urls"
+              value={mirrorUrls}
+              onChange={(e) => setMirrorUrls(e.target.value)}
+              placeholder={"https://mirror1.com/video.mp4\nhttps://mirror2.com/video.mp4"}
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Servidores alternativos usados automaticamente se o principal falhar (modo stream).
+            </p>
           </div>
           {folders && folders.length > 0 && (
             <div className="space-y-1.5">

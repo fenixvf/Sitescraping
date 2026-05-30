@@ -112,6 +112,8 @@ router.post("/videos", requireApiKey, async (req, res): Promise<void> => {
 
   const autoTitle = title ?? new URL(url).hostname;
 
+  const { mirror_urls } = parsed.data as typeof parsed.data & { mirror_urls?: string[] };
+
   const [video] = await db
     .insert(videosTable)
     .values({
@@ -122,6 +124,7 @@ router.post("/videos", requireApiKey, async (req, res): Promise<void> => {
       status: "unknown",
       tags: tags ?? [],
       fallback_url: fallback_url ?? null,
+      mirror_urls: mirror_urls ?? [],
       folder_id: folder_id ?? null,
     })
     .returning();
@@ -166,9 +169,29 @@ router.patch("/videos/:id", requireApiKey, async (req, res): Promise<void> => {
     return;
   }
 
+  const { swap_primary, ...updateFields } = parsed.data as typeof parsed.data & { swap_primary?: string };
+
+  // If swap_primary is set, promote that mirror URL to primary and move old primary to mirrors
+  let finalUpdate: Record<string, unknown> = { ...updateFields };
+  if (swap_primary) {
+    const [current] = await db.select().from(videosTable).where(eq(videosTable.id, params.data.id));
+    if (!current) {
+      res.status(404).json({ error: "Video not found", code: "NOT_FOUND" });
+      return;
+    }
+    const currentMirrors: string[] = current.mirror_urls ?? [];
+    if (!currentMirrors.includes(swap_primary)) {
+      res.status(400).json({ error: "swap_primary URL not found in mirror_urls", code: "VALIDATION_ERROR" });
+      return;
+    }
+    const newMirrors = currentMirrors.filter((u) => u !== swap_primary);
+    newMirrors.push(current.url); // move old primary to mirrors
+    finalUpdate = { ...finalUpdate, url: swap_primary, mirror_urls: newMirrors };
+  }
+
   const [video] = await db
     .update(videosTable)
-    .set(parsed.data)
+    .set(finalUpdate)
     .where(eq(videosTable.id, params.data.id))
     .returning();
 

@@ -21,6 +21,8 @@ export const videosTable = pgTable("videos", {
   url_refreshed_at: timestamp("url_refreshed_at", { withTimezone: true }),
 
   fallback_url: text("fallback_url"),
+  // Mirror URLs — alternative servers to try if the primary is down
+  mirror_urls: text("mirror_urls").array().notNull().default([]),
   source_type: text("source_type").notNull().default("selfhosted"),
   status: text("status").notNull().default("unknown"),
   mime_type: text("mime_type"),

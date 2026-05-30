@@ -12,6 +12,7 @@ export interface VideoInput {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  mirror_urls?: string[];
   /**
      * Endpoint that returns a fresh URL (JSON {url,expires_in} or plain text)
      * @nullable

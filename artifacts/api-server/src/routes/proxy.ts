@@ -98,24 +98,38 @@ router.get("/proxy/stream/:slug", async (req, res): Promise<void> => {
   };
   if (rangeHeader) upstreamHeaders["Range"] = rangeHeader;
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(targetUrl, {
-      headers: upstreamHeaders,
-      signal: AbortSignal.timeout(15_000),
-      // @ts-ignore — Node 18+ fetch supports redirect follow
-      redirect: "follow",
-    });
-  } catch (err) {
-    req.log.error({ slug, err }, "Stream fetch failed");
-    res.status(502).json({ error: "Failed to fetch video from origin", code: "UPSTREAM_ERROR" });
+  // Try primary URL, then mirror URLs in order
+  const urlsToTry = [targetUrl, ...(video.mirror_urls ?? [])];
+  let upstream: Response | null = null;
+  let usedUrl = targetUrl;
+
+  for (const tryUrl of urlsToTry) {
+    try {
+      const resp = await fetch(tryUrl, {
+        headers: upstreamHeaders,
+        signal: AbortSignal.timeout(15_000),
+        // @ts-ignore — Node 18+ fetch supports redirect follow
+        redirect: "follow",
+      });
+      if (resp.ok || resp.status === 206) {
+        upstream = resp;
+        usedUrl = tryUrl;
+        break;
+      }
+      req.log.warn({ slug, url: tryUrl, status: resp.status }, "Upstream URL failed, trying next mirror");
+    } catch (err) {
+      req.log.warn({ slug, url: tryUrl, err }, "Upstream fetch error, trying next mirror");
+    }
+  }
+
+  if (!upstream) {
+    req.log.error({ slug }, "All stream URLs (primary + mirrors) failed");
+    res.status(502).json({ error: "All server URLs failed", code: "UPSTREAM_ERROR" });
     return;
   }
 
-  if (!upstream.ok && upstream.status !== 206) {
-    req.log.warn({ slug, status: upstream.status }, "Upstream returned non-OK status");
-    res.status(upstream.status).json({ error: "Origin returned an error", code: "UPSTREAM_ERROR" });
-    return;
+  if (usedUrl !== targetUrl) {
+    req.log.info({ slug, usedUrl }, "Fell back to mirror URL");
   }
 
   // Forward useful headers

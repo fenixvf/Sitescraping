@@ -42,6 +42,7 @@ export const ListVideosResponse = zod.object({
   "content_length": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "mirror_urls": zod.array(zod.string()).optional(),
   "refresh_url": zod.string().nullish().describe('Endpoint called to get a fresh URL when url_expires_at is past'),
   "url_expires_at": zod.coerce.date().nullish().describe('When the cached URL expires. Null means static\/never expires.'),
   "url_refreshed_at": zod.coerce.date().nullish().describe('When the URL was last auto-refreshed'),
@@ -64,6 +65,7 @@ export const CreateVideoBody = zod.object({
   "title": zod.string().optional(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "mirror_urls": zod.array(zod.string()).optional(),
   "refresh_url": zod.string().nullish().describe('Endpoint that returns a fresh URL (JSON {url,expires_in} or plain text)'),
   "folder_id": zod.number().nullish()
 })
@@ -86,6 +88,7 @@ export const GetVideoResponse = zod.object({
   "content_length": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "mirror_urls": zod.array(zod.string()).optional(),
   "refresh_url": zod.string().nullish().describe('Endpoint called to get a fresh URL when url_expires_at is past'),
   "url_expires_at": zod.coerce.date().nullish().describe('When the cached URL expires. Null means static\/never expires.'),
   "url_refreshed_at": zod.coerce.date().nullish().describe('When the URL was last auto-refreshed'),
@@ -107,6 +110,8 @@ export const UpdateVideoBody = zod.object({
   "title": zod.string().optional(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "mirror_urls": zod.array(zod.string()).optional(),
+  "swap_primary": zod.string().optional(),
   "refresh_url": zod.string().nullish(),
   "status": zod.enum(['active', 'broken', 'unknown']).optional(),
   "folder_id": zod.number().nullish()
@@ -122,6 +127,7 @@ export const UpdateVideoResponse = zod.object({
   "content_length": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "mirror_urls": zod.array(zod.string()).optional(),
   "refresh_url": zod.string().nullish().describe('Endpoint called to get a fresh URL when url_expires_at is past'),
   "url_expires_at": zod.coerce.date().nullish().describe('When the cached URL expires. Null means static\/never expires.'),
   "url_refreshed_at": zod.coerce.date().nullish().describe('When the URL was last auto-refreshed'),

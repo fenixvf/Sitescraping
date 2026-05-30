@@ -21,6 +21,7 @@ export interface Video {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  mirror_urls?: string[];
   /**
      * Endpoint called to get a fresh URL when url_expires_at is past
      * @nullable

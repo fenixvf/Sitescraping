@@ -3,7 +3,7 @@ import { Eye, EyeOff, Copy, Check, RefreshCw, Globe, Clock, Shield } from "lucid
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-const API_KEY = import.meta.env.VITE_API_KEY_HINT ?? "(configured server-side)";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "(configured server-side)";
 
 function MaskedKey({ value }: { value: string }) {
   const [revealed, setRevealed] = useState(false);
@@ -69,7 +69,7 @@ export default function Settings() {
 
         <div className="space-y-1.5">
           <div className="text-xs text-muted-foreground">API Key</div>
-          <MaskedKey value="Set via API_KEY environment variable" />
+          <MaskedKey value={API_KEY} />
         </div>
 
         <div className="bg-secondary/30 rounded p-3">

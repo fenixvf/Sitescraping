@@ -12,6 +12,9 @@ export interface VideoUpdate {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  mirror_urls?: string[];
+  /** When set, promotes this mirror URL to primary and puts the old primary in mirror_urls */
+  swap_primary?: string;
   /** @nullable */
   refresh_url?: string | null;
   status?: VideoUpdateStatus;

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Copy, Check, Activity, Clock, Database } from "lucide-react";
+import { ArrowLeft, Copy, Check, Activity, Clock, Database, Plus, X, ArrowUpDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,84 @@ function formatBytes(bytes: number | null | undefined): string {
 function formatDate(d: string | null | undefined): string {
   if (!d) return "Never";
   return new Date(d).toLocaleString();
+}
+
+function MirrorUrls({ videoId, mirrors }: { videoId: number; mirrors: string[] }) {
+  const [newMirror, setNewMirror] = useState("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const updateVideo = useUpdateVideo({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetVideoQueryKey(videoId) });
+      },
+      onError: () => toast({ title: "Erro ao atualizar espelhos", variant: "destructive" }),
+    },
+  });
+
+  const addMirror = () => {
+    const trimmed = newMirror.trim();
+    if (!trimmed) return;
+    try { new URL(trimmed); } catch { toast({ title: "URL inválida", variant: "destructive" }); return; }
+    updateVideo.mutate({ id: videoId, data: { mirror_urls: [...mirrors, trimmed] } });
+    setNewMirror("");
+  };
+
+  const removeMirror = (url: string) => {
+    updateVideo.mutate({ id: videoId, data: { mirror_urls: mirrors.filter((u) => u !== url) } });
+  };
+
+  const promoteMirror = (url: string) => {
+    updateVideo.mutate({ id: videoId, data: { swap_primary: url } });
+    toast({ title: "Servidor principal trocado" });
+  };
+
+  return (
+    <div className="space-y-2 pt-3 border-t border-border">
+      <div className="text-xs font-medium">Servidores Espelho</div>
+      {mirrors.length === 0 && (
+        <p className="text-xs text-muted-foreground">Nenhum espelho. Adicione abaixo para ter fallback automático.</p>
+      )}
+      {mirrors.map((url) => (
+        <div key={url} className="flex items-center gap-1.5 bg-secondary/30 rounded px-2 py-1.5">
+          <span className="flex-1 font-mono text-[10px] truncate text-muted-foreground" title={url}>{url}</span>
+          <button
+            onClick={() => promoteMirror(url)}
+            title="Usar como principal"
+            className="text-primary hover:text-primary/70 transition-colors shrink-0"
+          >
+            <ArrowUpDown className="w-3 h-3" />
+          </button>
+          <button
+            onClick={() => removeMirror(url)}
+            title="Remover espelho"
+            className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <Input
+          value={newMirror}
+          onChange={(e) => setNewMirror(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMirror())}
+          placeholder="https://mirror.exemplo.com/video.mp4"
+          className="h-7 text-xs font-mono"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={addMirror}
+          disabled={!newMirror || updateVideo.isPending}
+          className="h-7 px-2 shrink-0"
+        >
+          <Plus className="w-3 h-3" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export default function VideoDetail() {
@@ -168,7 +247,9 @@ export default function VideoDetail() {
                 <CopyField label="Fallback URL" value={video.fallback_url} />
               )}
 
-              <div className="text-[10px] text-muted-foreground pt-1 border-t border-border">
+              <MirrorUrls videoId={video.id} mirrors={video.mirror_urls ?? []} />
+
+              <div className="text-[10px] text-muted-foreground pt-1">
                 Added {formatDate(video.created_at)}
               </div>
             </>
