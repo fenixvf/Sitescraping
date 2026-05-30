@@ -244,7 +244,6 @@ export default function PlayerPage() {
                 ref={videoRef}
                 className="w-full h-full"
                 controls
-                crossOrigin="anonymous"
                 src={video?.proxy_url}
                 preload="auto"
               />
