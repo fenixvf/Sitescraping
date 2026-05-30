@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useRoute, Link } from "wouter";
+import Hls from "hls.js";
 import {
   useListVideos,
   useGetVideo,
@@ -10,9 +11,14 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Play, RefreshCw, Wifi, AlertTriangle, Clock, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+function isHlsMime(mime: string | null | undefined): boolean {
+  if (!mime) return false;
+  const m = mime.toLowerCase();
+  return m.includes("mpegurl") || m.includes("m3u8");
+}
 
 interface EventEntry {
   id: number;
@@ -68,6 +74,8 @@ export default function PlayerPage() {
   const [, params] = useRoute("/player/:id");
   const [selectedId, setSelectedId] = useState<number | null>(params?.id ? parseInt(params.id, 10) : null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const [usingHls, setUsingHls] = useState(false);
   const [events, setEvents] = useState<EventEntry[]>([]);
   const [prevRefreshedAt, setPrevRefreshedAt] = useState<string | null | undefined>(undefined);
   const [prevTotalRequests, setPrevTotalRequests] = useState<number | null>(null);
@@ -123,58 +131,154 @@ export default function PlayerPage() {
     }
   }, [stats?.total_requests]);
 
+  // Helper: attach HLS.js to the video element
+  const attachHls = useCallback((el: HTMLVideoElement, src: string) => {
+    if (!Hls.isSupported()) {
+      addEvent("warn", "⚠ HLS.js não suportado neste browser — tentando nativo");
+      el.src = src;
+      return;
+    }
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+    hlsRef.current = hls;
+    hls.loadSource(src);
+    hls.attachMedia(el);
+    setUsingHls(true);
+    addEvent("info", "🎞 HLS.js ativo — carregando playlist...");
+
+    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+      addEvent("success", `✓ Manifest HLS carregado — ${data.levels.length} qualidade(s) disponível(is)`);
+      el.play().catch(() => {});
+    });
+
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+      const lvl = hls.levels[data.level];
+      if (lvl) addEvent("info", `📶 Qualidade: ${lvl.height ? `${lvl.height}p` : "auto"} (${Math.round((lvl.bitrate ?? 0) / 1000)} kbps)`);
+    });
+
+    hls.on(Hls.Events.FRAG_LOADED, (_e, data) => {
+      addEvent("info", `🧩 Segmento carregado: ${data.frag.sn} (${(data.frag.stats.total / 1024).toFixed(1)} KB)`);
+    });
+
+    hls.on(Hls.Events.ERROR, (_e, data) => {
+      if (data.fatal) {
+        addEvent("error", `✗ HLS.js erro fatal (${data.type}): ${data.details}`);
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          addEvent("warn", "🔄 Tentando recuperar erro de rede...");
+          hls.startLoad();
+        } else {
+          hls.destroy();
+          hlsRef.current = null;
+          setUsingHls(false);
+        }
+      } else {
+        addEvent("warn", `⚠ HLS.js aviso (${data.details})`);
+      }
+    });
+  }, [addEvent]);
+
+  // Initialize / switch player mode when video changes
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !video?.proxy_url) return;
+
+    const src = video.proxy_url;
+
+    // Destroy any existing HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+      setUsingHls(false);
+    }
+
+    // If mime_type tells us it's HLS → go straight to HLS.js
+    if (isHlsMime(video.mime_type)) {
+      attachHls(el, src);
+      return;
+    }
+
+    // Otherwise try native; fall back to HLS.js on SRC_NOT_SUPPORTED
+    el.src = src;
+    el.load();
+
+    const onError = () => {
+      if (el.error?.code === 4 && Hls.isSupported()) {
+        addEvent("warn", "⚠ Nativo falhou — tentando HLS.js...");
+        attachHls(el, src);
+      }
+    };
+    el.addEventListener("error", onError, { once: true });
+    return () => el.removeEventListener("error", onError);
+  }, [video?.proxy_url, video?.mime_type, attachHls, addEvent]);
+
   // Attach video element events
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !selectedId) return;
 
     const handlers: Record<string, () => void> = {
-      loadstart: () => addEvent("info", "▶ Iniciando carregamento do vídeo via proxy..."),
+      loadstart: () => addEvent("info", "▶ Iniciando carregamento via proxy..."),
       canplay: () => addEvent("success", "✓ Vídeo pronto para reprodução"),
       playing: () => addEvent("success", "▶ Reproduzindo"),
       pause: () => addEvent("info", "⏸ Pausado"),
       waiting: () => addEvent("warn", "⏳ Buffering / aguardando dados..."),
       stalled: () => addEvent("warn", "⚠ Stall — conexão parou de enviar dados"),
       error: () => {
+        if (hlsRef.current) return; // HLS.js handles its own errors
         const code = el.error?.code ?? "?";
         const msg = el.error?.message ?? "desconhecido";
         const labels: Record<number, string> = { 1: "ABORTED", 2: "NETWORK", 3: "DECODE", 4: "SRC_NOT_SUPPORTED" };
-        addEvent("error", `✗ Erro no player (código ${labels[code] ?? code}): ${msg}`);
+        addEvent("error", `✗ Erro (${labels[code as number] ?? code}): ${msg}`);
       },
       ended: () => addEvent("info", "⏹ Reprodução finalizada"),
       seeked: () => addEvent("info", `⏩ Seeked para ${el.currentTime.toFixed(1)}s`),
     };
 
-    for (const [evt, fn] of Object.entries(handlers)) {
-      el.addEventListener(evt, fn);
-    }
+    for (const [evt, fn] of Object.entries(handlers)) el.addEventListener(evt, fn);
     return () => {
-      for (const [evt, fn] of Object.entries(handlers)) {
-        el.removeEventListener(evt, fn);
-      }
+      for (const [evt, fn] of Object.entries(handlers)) el.removeEventListener(evt, fn);
     };
   }, [selectedId, addEvent]);
 
+  // Cleanup HLS on unmount
+  useEffect(() => {
+    return () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+    };
+  }, []);
+
   const handleVideoSelect = (idStr: string) => {
     const id = parseInt(idStr, 10);
+    // Destroy HLS before switching
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    setUsingHls(false);
     setSelectedId(id);
     setEvents([]);
     setPrevRefreshedAt(undefined);
     setPrevTotalRequests(null);
     queryClient.invalidateQueries({ queryKey: getGetVideoQueryKey(id) });
     queryClient.invalidateQueries({ queryKey: getGetVideoStatsQueryKey(id) });
-    if (videoRef.current) {
-      videoRef.current.load();
-    }
   };
 
   const handleForceRefresh = () => {
-    addEvent("info", "🔃 Forçando nova requisição ao proxy (reload do player)...");
-    if (videoRef.current) {
-      const t = videoRef.current.currentTime;
-      videoRef.current.load();
-      videoRef.current.currentTime = t;
-      videoRef.current.play().catch(() => {});
+    addEvent("info", "🔃 Forçando nova requisição ao proxy...");
+    const el = videoRef.current;
+    if (!el || !video?.proxy_url) return;
+    if (hlsRef.current) {
+      // HLS.js: reload the manifest
+      hlsRef.current.stopLoad();
+      hlsRef.current.loadSource(video.proxy_url);
+      hlsRef.current.startLoad();
+      el.play().catch(() => {});
+    } else {
+      const t = el.currentTime;
+      el.load();
+      el.currentTime = t;
+      el.play().catch(() => {});
     }
   };
 
@@ -239,14 +343,19 @@ export default function PlayerPage() {
                 <p className="text-xs">Selecione um vídeo acima</p>
               </div>
             ) : (
-              <video
-                key={selectedId}
-                ref={videoRef}
-                className="w-full h-full"
-                controls
-                src={video?.proxy_url}
-                preload="auto"
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  className="w-full h-full"
+                  controls
+                  preload="auto"
+                />
+                {usingHls && (
+                  <div className="absolute top-2 right-2 bg-purple-600/80 text-white text-[10px] font-bold px-2 py-0.5 rounded font-mono">
+                    HLS.js
+                  </div>
+                )}
+              </>
             )}
           </div>
 
