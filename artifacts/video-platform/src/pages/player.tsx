@@ -8,7 +8,7 @@ import {
   getGetVideoStatsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Play, Pause, RefreshCw, Wifi, AlertTriangle, CheckCircle2, Clock, Activity, ChevronDown } from "lucide-react";
+import { ArrowLeft, Play, RefreshCw, Wifi, AlertTriangle, Clock, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -182,6 +182,11 @@ export default function PlayerPage() {
     ? new Date(video.url_expires_at).getTime() <= Date.now()
     : false;
 
+  // Build stream URL: replace /proxy/v/ with /proxy/stream/
+  const streamUrl = video?.proxy_url
+    ? video.proxy_url.replace("/proxy/v/", "/proxy/stream/")
+    : undefined;
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
       {/* Header */}
@@ -240,11 +245,11 @@ export default function PlayerPage() {
               </div>
             ) : (
               <video
-                key={selectedId}
+                key={`${selectedId}-${streamUrl}`}
                 ref={videoRef}
                 className="w-full h-full"
                 controls
-                src={video?.proxy_url}
+                src={streamUrl}
                 preload="auto"
               />
             )}
