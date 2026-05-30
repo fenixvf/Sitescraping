@@ -16,7 +16,9 @@ import {
 const router: IRouter = Router();
 
 function buildProxyUrl(slug: string): string {
-  const base = process.env.BASE_URL ?? "";
+  // The API server is mounted at /api by the Replit reverse-proxy,
+  // so proxy routes must carry the /api prefix to be reachable from the browser.
+  const base = process.env.BASE_URL ?? "/api";
   return `${base}/proxy/v/${slug}`;
 }
 

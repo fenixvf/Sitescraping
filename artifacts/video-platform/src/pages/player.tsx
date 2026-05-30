@@ -182,11 +182,6 @@ export default function PlayerPage() {
     ? new Date(video.url_expires_at).getTime() <= Date.now()
     : false;
 
-  // Build stream URL: replace /proxy/v/ with /proxy/stream/
-  const streamUrl = video?.proxy_url
-    ? video.proxy_url.replace("/proxy/v/", "/proxy/stream/")
-    : undefined;
-
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
       {/* Header */}
@@ -245,11 +240,11 @@ export default function PlayerPage() {
               </div>
             ) : (
               <video
-                key={`${selectedId}-${streamUrl}`}
+                key={selectedId}
                 ref={videoRef}
                 className="w-full h-full"
                 controls
-                src={streamUrl}
+                src={video?.proxy_url}
                 preload="auto"
               />
             )}

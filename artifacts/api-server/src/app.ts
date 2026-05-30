@@ -33,7 +33,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Proxy endpoint (public, no API key required)
-app.use(proxyRouter);
+// Mounted under /api so it's reachable via the Replit reverse-proxy at /api/proxy/...
+app.use("/api", proxyRouter);
 
 // API routes (require API key per route)
 app.use("/api", router);
