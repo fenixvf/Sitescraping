@@ -1,6 +1,7 @@
 import { pgTable, text, serial, timestamp, integer, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { foldersTable } from "./folders";
 
 export const videosTable = pgTable("videos", {
   id: serial("id").primaryKey(),
@@ -13,6 +14,7 @@ export const videosTable = pgTable("videos", {
   mime_type: text("mime_type"),
   content_length: bigint("content_length", { mode: "number" }),
   tags: text("tags").array().notNull().default([]),
+  folder_id: integer("folder_id").references(() => foldersTable.id, { onDelete: "set null" }),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

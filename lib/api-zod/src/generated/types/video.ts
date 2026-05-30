@@ -21,6 +21,8 @@ export interface Video {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /** @nullable */
+  folder_id?: number | null;
   proxy_url: string;
   created_at: Date;
   updated_at: Date;

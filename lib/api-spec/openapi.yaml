@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: videos
     description: Video link management
+  - name: folders
+    description: Folder management
   - name: sync
     description: Synchronization operations
   - name: stats
@@ -62,6 +64,10 @@ paths:
           schema:
             type: string
             enum: [cdn, platform, storage, selfhosted]
+        - in: query
+          name: folder_id
+          schema:
+            type: integer
       responses:
         "200":
           description: List of videos
@@ -191,6 +197,94 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /folders:
+    get:
+      operationId: listFolders
+      tags: [folders]
+      summary: List all folders
+      responses:
+        "200":
+          description: List of folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Folder"
+    post:
+      operationId: createFolder
+      tags: [folders]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderInput"
+      responses:
+        "201":
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /folders/{id}:
+    patch:
+      operationId: updateFolder
+      tags: [folders]
+      summary: Update a folder
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderInput"
+      responses:
+        "200":
+          description: Updated folder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteFolder
+      tags: [folders]
+      summary: Delete a folder (videos become unfoldered)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /sync:
     post:
       operationId: triggerSync
@@ -263,6 +357,31 @@ components:
       required:
         - status
 
+    Folder:
+      type: object
+      required: [id, name, color, created_at, video_count]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        video_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    FolderInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+
     Video:
       type: object
       required: [id, slug, title, source_type, status, proxy_url, created_at, updated_at]
@@ -289,6 +408,8 @@ components:
             type: string
         fallback_url:
           type: ["string", "null"]
+        folder_id:
+          type: ["integer", "null"]
         proxy_url:
           type: string
         created_at:
@@ -313,6 +434,8 @@ components:
             type: string
         fallback_url:
           type: ["string", "null"]
+        folder_id:
+          type: ["integer", "null"]
 
     VideoUpdate:
       type: object
@@ -328,6 +451,8 @@ components:
         status:
           type: string
           enum: [active, broken, unknown]
+        folder_id:
+          type: ["integer", "null"]
 
     VideoListResponse:
       type: object

@@ -10,6 +10,8 @@ export * from './accessLog';
 export * from './activityEvent';
 export * from './activityEventEventType';
 export * from './apiError';
+export * from './folder';
+export * from './folderInput';
 export * from './getRecentActivityParams';
 export * from './healthStatus';
 export * from './listVideosParams';

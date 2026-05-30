@@ -28,7 +28,8 @@ export const ListVideosQueryParams = zod.object({
   "limit": zod.coerce.number().default(listVideosQueryLimitDefault),
   "tag": zod.coerce.string().optional(),
   "status": zod.enum(['active', 'broken', 'unknown']).optional(),
-  "source_type": zod.enum(['cdn', 'platform', 'storage', 'selfhosted']).optional()
+  "source_type": zod.enum(['cdn', 'platform', 'storage', 'selfhosted']).optional(),
+  "folder_id": zod.coerce.number().optional()
 })
 
 export const ListVideosResponse = zod.object({
@@ -42,6 +43,7 @@ export const ListVideosResponse = zod.object({
   "content_length": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "folder_id": zod.number().nullish(),
   "proxy_url": zod.string(),
   "created_at": zod.coerce.date(),
   "updated_at": zod.coerce.date()
@@ -59,7 +61,8 @@ export const CreateVideoBody = zod.object({
   "url": zod.string().url(),
   "title": zod.string().optional(),
   "tags": zod.array(zod.string()).optional(),
-  "fallback_url": zod.string().nullish()
+  "fallback_url": zod.string().nullish(),
+  "folder_id": zod.number().nullish()
 })
 
 
@@ -80,6 +83,7 @@ export const GetVideoResponse = zod.object({
   "content_length": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "folder_id": zod.number().nullish(),
   "proxy_url": zod.string(),
   "created_at": zod.coerce.date(),
   "updated_at": zod.coerce.date()
@@ -97,7 +101,8 @@ export const UpdateVideoBody = zod.object({
   "title": zod.string().optional(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
-  "status": zod.enum(['active', 'broken', 'unknown']).optional()
+  "status": zod.enum(['active', 'broken', 'unknown']).optional(),
+  "folder_id": zod.number().nullish()
 })
 
 export const UpdateVideoResponse = zod.object({
@@ -110,6 +115,7 @@ export const UpdateVideoResponse = zod.object({
   "content_length": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional(),
   "fallback_url": zod.string().nullish(),
+  "folder_id": zod.number().nullish(),
   "proxy_url": zod.string(),
   "created_at": zod.coerce.date(),
   "updated_at": zod.coerce.date()
@@ -145,6 +151,57 @@ export const GetVideoStatsResponse = zod.object({
   "bytes": zod.number().nullish(),
   "accessed_at": zod.coerce.date()
 }))
+})
+
+
+/**
+ * @summary List all folders
+ */
+export const ListFoldersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "video_count": zod.number(),
+  "created_at": zod.coerce.date()
+})
+export const ListFoldersResponse = zod.array(ListFoldersResponseItem)
+
+
+/**
+ * @summary Create a folder
+ */
+export const CreateFolderBody = zod.object({
+  "name": zod.string(),
+  "color": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a folder
+ */
+export const UpdateFolderParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateFolderBody = zod.object({
+  "name": zod.string(),
+  "color": zod.string().optional()
+})
+
+export const UpdateFolderResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "color": zod.string(),
+  "video_count": zod.number(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a folder (videos become unfoldered)
+ */
+export const DeleteFolderParams = zod.object({
+  "id": zod.coerce.number()
 })
 
 

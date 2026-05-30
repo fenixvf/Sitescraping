@@ -12,4 +12,6 @@ export interface VideoInput {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /** @nullable */
+  folder_id?: number | null;
 }

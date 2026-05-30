@@ -14,4 +14,5 @@ limit?: number;
 tag?: string;
 status?: ListVideosStatus;
 source_type?: ListVideosSourceType;
+folder_id?: number;
 };

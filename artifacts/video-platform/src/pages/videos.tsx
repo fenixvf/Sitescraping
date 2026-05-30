@@ -1,9 +1,11 @@
 import { useState } from "react";
 import {
   useListVideos,
+  useListFolders,
   getListVideosQueryKey,
   useCreateVideo,
   useDeleteVideo,
+  useUpdateVideo,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -14,9 +16,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Plus, Trash2, ExternalLink, Check } from "lucide-react";
+import { Copy, Plus, Trash2, ExternalLink, Check, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
+import { useFolderContext } from "@/components/layout/layout";
 
 const STATUS_STYLES: Record<string, string> = {
   active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
@@ -39,40 +42,32 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <button
-      data-testid="button-copy-proxy-url"
-      onClick={copy}
-      className="text-muted-foreground hover:text-foreground transition-colors"
-    >
+    <button onClick={copy} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
 
-function AddVideoDialog() {
+function AddVideoDialog({ defaultFolderId }: { defaultFolderId?: number | null }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
-  const [fallbackUrl, setFallbackUrl] = useState("");
+  const [folderId, setFolderId] = useState<string>(defaultFolderId ? String(defaultFolderId) : "none");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: folders } = useListFolders();
 
   const createVideo = useCreateVideo({
     mutation: {
       onSuccess: (video) => {
         queryClient.invalidateQueries({ queryKey: getListVideosQueryKey() });
         queryClient.invalidateQueries();
-        toast({ title: "Video registered", description: `Proxy: ${video.proxy_url}` });
+        toast({ title: "Vídeo registrado", description: `Proxy: ${video.proxy_url}` });
         setOpen(false);
-        setUrl("");
-        setTitle("");
-        setTags("");
-        setFallbackUrl("");
+        setUrl(""); setTitle(""); setTags("");
       },
-      onError: () => {
-        toast({ title: "Failed to register video", variant: "destructive" });
-      },
+      onError: () => toast({ title: "Erro ao registrar vídeo", variant: "destructive" }),
     },
   });
 
@@ -84,7 +79,7 @@ function AddVideoDialog() {
         url,
         title: title || undefined,
         tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
-        fallback_url: fallbackUrl || null,
+        folder_id: folderId !== "none" ? Number(folderId) : null,
       },
     });
   };
@@ -92,21 +87,21 @@ function AddVideoDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button data-testid="button-add-video" size="sm" className="gap-1.5">
+        <Button size="sm" className="gap-1.5 text-xs h-8 shrink-0">
           <Plus className="w-3.5 h-3.5" />
-          Add Video
+          <span className="hidden sm:inline">Adicionar vídeo</span>
+          <span className="sm:hidden">Adicionar</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md mx-4">
         <DialogHeader>
-          <DialogTitle>Register Video Link</DialogTitle>
+          <DialogTitle>Registrar link de vídeo</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="url">URL *</Label>
             <Input
               id="url"
-              data-testid="input-video-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com/video.mp4"
@@ -114,42 +109,46 @@ function AddVideoDialog() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title">Título</Label>
             <Input
               id="title"
-              data-testid="input-video-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Auto-detected from URL"
+              placeholder="Detectado automaticamente da URL"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tags">Tags (comma-separated)</Label>
+            <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
             <Input
               id="tags"
-              data-testid="input-video-tags"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="sports, 4k, live"
+              placeholder="esportes, 4k, ao vivo"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="fallback">Fallback URL</Label>
-            <Input
-              id="fallback"
-              data-testid="input-video-fallback"
-              value={fallbackUrl}
-              onChange={(e) => setFallbackUrl(e.target.value)}
-              placeholder="https://backup.example.com/video.mp4"
-            />
-          </div>
-          <Button
-            data-testid="button-submit-video"
-            type="submit"
-            className="w-full"
-            disabled={createVideo.isPending || !url}
-          >
-            {createVideo.isPending ? "Registering..." : "Register"}
+          {folders && folders.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Pasta</Label>
+              <Select value={folderId} onValueChange={setFolderId}>
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder="Sem pasta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem pasta</SelectItem>
+                  {folders.map((f) => (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      <span className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: f.color }} />
+                        {f.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <Button type="submit" className="w-full" disabled={createVideo.isPending || !url}>
+            {createVideo.isPending ? "Registrando..." : "Registrar"}
           </Button>
         </form>
       </DialogContent>
@@ -157,18 +156,66 @@ function AddVideoDialog() {
   );
 }
 
+function VideoCard({ video, onDelete }: { video: any; onDelete: () => void }) {
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3 bg-card hover:bg-card/80 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <Link href={`/videos/${video.id}`}>
+            <p className="text-sm font-medium hover:text-primary cursor-pointer truncate">{video.title}</p>
+          </Link>
+          <span className="font-mono text-[10px] text-muted-foreground">{video.slug}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Link href={`/videos/${video.id}`}>
+            <button className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </Link>
+          <button
+            className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+            onClick={() => { if (confirm("Deletar este vídeo?")) onDelete(); }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge className={cn("text-[10px] font-mono uppercase border-0", SOURCE_STYLES[video.source_type])}>
+          {video.source_type}
+        </Badge>
+        <Badge className={cn("text-[10px] font-mono capitalize border", STATUS_STYLES[video.status])}>
+          {video.status}
+        </Badge>
+        {video.tags?.map((tag: string) => (
+          <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary rounded font-mono">{tag}</span>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-1.5 bg-secondary/40 rounded px-2 py-1.5">
+        <span className="font-mono text-[10px] text-muted-foreground truncate flex-1">{video.proxy_url}</span>
+        <CopyButton text={video.proxy_url} />
+      </div>
+    </div>
+  );
+}
+
 export default function VideosList() {
+  const { activeFolderId, setActiveFolderId } = useFolderContext();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: folders } = useListFolders();
 
   const params = {
     page,
     limit: 25,
     status: statusFilter !== "all" ? (statusFilter as "active" | "broken" | "unknown") : undefined,
     source_type: sourceFilter !== "all" ? (sourceFilter as "cdn" | "platform" | "storage" | "selfhosted") : undefined,
+    folder_id: activeFolderId ?? undefined,
   };
 
   const { data, isLoading } = useListVideos({ params });
@@ -178,58 +225,124 @@ export default function VideosList() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListVideosQueryKey() });
         queryClient.invalidateQueries();
-        toast({ title: "Video deleted" });
+        toast({ title: "Vídeo deletado" });
       },
     },
   });
 
+  const activeFolder = folders?.find((f) => f.id === activeFolderId);
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Videos</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {data?.total ?? "—"} videos registered
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {activeFolder && (
+              <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: activeFolder.color }} />
+            )}
+            <h1 className="text-base sm:text-lg font-semibold truncate">
+              {activeFolder ? activeFolder.name : "Vídeos"}
+            </h1>
+          </div>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+            {data?.total ?? "—"} vídeos registrados
+            {activeFolder && (
+              <button
+                onClick={() => setActiveFolderId(null)}
+                className="ml-2 text-primary hover:underline"
+              >
+                Ver todos
+              </button>
+            )}
           </p>
         </div>
-        <AddVideoDialog />
+        <AddVideoDialog defaultFolderId={activeFolderId} />
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger data-testid="select-status-filter" className="w-36 text-xs h-8">
+          <SelectTrigger className="w-32 sm:w-36 text-xs h-8">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="broken">Broken</SelectItem>
-            <SelectItem value="unknown">Unknown</SelectItem>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="active">Ativo</SelectItem>
+            <SelectItem value="broken">Quebrado</SelectItem>
+            <SelectItem value="unknown">Desconhecido</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(1); }}>
-          <SelectTrigger data-testid="select-source-filter" className="w-40 text-xs h-8">
-            <SelectValue placeholder="Source type" />
+          <SelectTrigger className="w-36 sm:w-40 text-xs h-8">
+            <SelectValue placeholder="Tipo" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="all">Todos os tipos</SelectItem>
             <SelectItem value="cdn">CDN</SelectItem>
-            <SelectItem value="platform">Platform</SelectItem>
+            <SelectItem value="platform">Plataforma</SelectItem>
             <SelectItem value="storage">Storage</SelectItem>
             <SelectItem value="selfhosted">Self-hosted</SelectItem>
           </SelectContent>
         </Select>
+        {folders && folders.length > 0 && (
+          <Select
+            value={activeFolderId !== null ? String(activeFolderId) : "all"}
+            onValueChange={(v) => { setActiveFolderId(v === "all" ? null : Number(v)); setPage(1); }}
+          >
+            <SelectTrigger className="w-36 sm:w-40 text-xs h-8">
+              <SelectValue placeholder="Pasta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <span className="flex items-center gap-2"><FolderOpen className="w-3 h-3" />Todas as pastas</span>
+              </SelectItem>
+              {folders.map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>
+                  <span className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: f.color }} />
+                    {f.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="border border-border rounded overflow-hidden">
+      {/* Mobile card list */}
+      <div className="sm:hidden space-y-3">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border border-border rounded-lg p-4 space-y-3">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ))
+        ) : data?.videos.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Nenhum vídeo encontrado. Adicione seu primeiro link.
+          </div>
+        ) : (
+          data?.videos.map((video) => (
+            <VideoCard
+              key={video.id}
+              video={video}
+              onDelete={() => deleteVideo.mutate({ id: video.id })}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block border border-border rounded overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/30 text-left">
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Slug</th>
-              <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Title</th>
-              <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Type</th>
+              <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Título</th>
+              <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Tipo</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Status</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Proxy URL</th>
               <th className="px-4 py-2.5 text-xs font-medium text-muted-foreground">Tags</th>
@@ -241,23 +354,20 @@ export default function VideosList() {
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-border/50">
                   {Array.from({ length: 7 }).map((_, j) => (
-                    <td key={j} className="px-4 py-3">
-                      <Skeleton className="h-4 w-full" />
-                    </td>
+                    <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-full" /></td>
                   ))}
                 </tr>
               ))
             ) : data?.videos.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground text-sm">
-                  No videos found. Add your first video link.
+                  Nenhum vídeo encontrado. Adicione seu primeiro link.
                 </td>
               </tr>
             ) : (
               data?.videos.map((video) => (
                 <tr
                   key={video.id}
-                  data-testid={`row-video-${video.id}`}
                   className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
                 >
                   <td className="px-4 py-3">
@@ -286,10 +396,8 @@ export default function VideosList() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 flex-wrap">
-                      {video.tags?.slice(0, 2).map((tag) => (
-                        <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary rounded font-mono">
-                          {tag}
-                        </span>
+                      {video.tags?.slice(0, 2).map((tag: string) => (
+                        <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary rounded font-mono">{tag}</span>
                       ))}
                       {(video.tags?.length ?? 0) > 2 && (
                         <span className="text-[10px] text-muted-foreground">+{(video.tags?.length ?? 0) - 2}</span>
@@ -299,20 +407,14 @@ export default function VideosList() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <Link href={`/videos/${video.id}`}>
-                        <button
-                          data-testid={`button-view-video-${video.id}`}
-                          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                        >
+                        <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
                       </Link>
                       <button
-                        data-testid={`button-delete-video-${video.id}`}
                         className="p-1 text-muted-foreground hover:text-red-400 transition-colors"
                         onClick={() => {
-                          if (confirm("Delete this video?")) {
-                            deleteVideo.mutate({ id: video.id });
-                          }
+                          if (confirm("Deletar este vídeo?")) deleteVideo.mutate({ id: video.id });
                         }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -330,28 +432,14 @@ export default function VideosList() {
       {data && data.total > data.limit && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            Showing {(page - 1) * data.limit + 1}–{Math.min(page * data.limit, data.total)} of {data.total}
+            {(page - 1) * data.limit + 1}–{Math.min(page * data.limit, data.total)} de {data.total}
           </span>
           <div className="flex gap-2">
-            <Button
-              data-testid="button-prev-page"
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
+            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+              Anterior
             </Button>
-            <Button
-              data-testid="button-next-page"
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              disabled={page * data.limit >= data.total}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
+            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page * data.limit >= data.total} onClick={() => setPage((p) => p + 1)}>
+              Próximo
             </Button>
           </div>
         </div>

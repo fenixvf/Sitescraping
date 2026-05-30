@@ -9,6 +9,19 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface Folder {
+  id: number;
+  name: string;
+  color: string;
+  video_count: number;
+  created_at: string;
+}
+
+export interface FolderInput {
+  name: string;
+  color?: string;
+}
+
 export type VideoSourceType = typeof VideoSourceType[keyof typeof VideoSourceType];
 
 
@@ -41,6 +54,8 @@ export interface Video {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /** @nullable */
+  folder_id?: number | null;
   proxy_url: string;
   created_at: string;
   updated_at: string;
@@ -52,6 +67,8 @@ export interface VideoInput {
   tags?: string[];
   /** @nullable */
   fallback_url?: string | null;
+  /** @nullable */
+  folder_id?: number | null;
 }
 
 export type VideoUpdateStatus = typeof VideoUpdateStatus[keyof typeof VideoUpdateStatus];
@@ -69,6 +86,8 @@ export interface VideoUpdate {
   /** @nullable */
   fallback_url?: string | null;
   status?: VideoUpdateStatus;
+  /** @nullable */
+  folder_id?: number | null;
 }
 
 export interface VideoListResponse {
@@ -154,6 +173,7 @@ limit?: number;
 tag?: string;
 status?: ListVideosStatus;
 source_type?: ListVideosSourceType;
+folder_id?: number;
 };
 
 export type ListVideosStatus = typeof ListVideosStatus[keyof typeof ListVideosStatus];

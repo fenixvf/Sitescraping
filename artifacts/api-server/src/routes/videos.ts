@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, like, sql, desc, count, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, count, isNull } from "drizzle-orm";
 import { db, videosTable, accessLogsTable, syncLogsTable } from "@workspace/db";
 import { requireApiKey } from "../middlewares/auth";
 import { generateSlug, detectSourceType } from "../lib/slug";
@@ -27,12 +27,16 @@ router.get("/videos", requireApiKey, async (req, res): Promise<void> => {
     return;
   }
 
-  const { page = 1, limit = 20, tag, status, source_type } = parsed.data;
+  const { page = 1, limit = 20, tag, status, source_type, folder_id } = parsed.data as typeof parsed.data & { folder_id?: number };
+
   const offset = (page - 1) * limit;
 
   const conditions: ReturnType<typeof eq>[] = [];
   if (status) conditions.push(eq(videosTable.status, status));
   if (source_type) conditions.push(eq(videosTable.source_type, source_type));
+  if (folder_id !== undefined) {
+    conditions.push(eq(videosTable.folder_id, folder_id));
+  }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -77,9 +81,8 @@ router.post("/videos", requireApiKey, async (req, res): Promise<void> => {
     return;
   }
 
-  const { url, title, tags = [], fallback_url } = parsed.data;
+  const { url, title, tags = [], fallback_url, folder_id } = parsed.data as typeof parsed.data & { folder_id?: number | null };
 
-  // Validate URL
   try {
     new URL(url);
   } catch {
@@ -93,7 +96,6 @@ router.post("/videos", requireApiKey, async (req, res): Promise<void> => {
 
   const source_type = detectSourceType(url);
 
-  // Generate unique slug
   let slug = generateSlug();
   let attempts = 0;
   while (attempts < 10) {
@@ -118,6 +120,7 @@ router.post("/videos", requireApiKey, async (req, res): Promise<void> => {
       status: "unknown",
       tags: tags ?? [],
       fallback_url: fallback_url ?? null,
+      folder_id: folder_id ?? null,
     })
     .returning();
 
