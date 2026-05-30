@@ -12,6 +12,7 @@ import {
   Pencil,
   Trash2,
   Menu,
+  PlayCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -179,6 +180,7 @@ function SidebarContent({
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/videos", label: "Vídeos", icon: Video },
+    { path: "/player", label: "Player de Teste", icon: PlayCircle },
     { path: "/settings", label: "Configurações", icon: Settings },
   ];
 

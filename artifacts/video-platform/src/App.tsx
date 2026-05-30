@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import VideosList from "@/pages/videos";
 import VideoDetail from "@/pages/video-detail";
 import Settings from "@/pages/settings";
+import PlayerPage from "@/pages/player";
 import { Layout } from "@/components/layout/layout";
 
 const queryClient = new QueryClient({
@@ -27,6 +28,8 @@ function Router() {
         <Route path="/videos" component={VideosList} />
         <Route path="/videos/:id" component={VideoDetail} />
         <Route path="/settings" component={Settings} />
+        <Route path="/player" component={PlayerPage} />
+        <Route path="/player/:id" component={PlayerPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
