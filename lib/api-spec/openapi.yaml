@@ -3,13 +3,20 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Video Distribution Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: videos
+    description: Video link management
+  - name: sync
+    description: Synchronization operations
+  - name: stats
+    description: Analytics and statistics
+
 paths:
   /healthz:
     get:
@@ -24,6 +31,228 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /videos:
+    get:
+      operationId: listVideos
+      tags: [videos]
+      summary: List all videos
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: tag
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, broken, unknown]
+        - in: query
+          name: source_type
+          schema:
+            type: string
+            enum: [cdn, platform, storage, selfhosted]
+      responses:
+        "200":
+          description: List of videos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoListResponse"
+    post:
+      operationId: createVideo
+      tags: [videos]
+      summary: Register a new video link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoInput"
+      responses:
+        "201":
+          description: Video registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /videos/{id}:
+    get:
+      operationId: getVideo
+      tags: [videos]
+      summary: Get a video by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateVideo
+      tags: [videos]
+      summary: Update a video
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoUpdate"
+      responses:
+        "200":
+          description: Updated video
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteVideo
+      tags: [videos]
+      summary: Delete a video
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /videos/{id}/stats:
+    get:
+      operationId: getVideoStats
+      tags: [videos]
+      summary: Get access stats for a video
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoStats"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /sync:
+    post:
+      operationId: triggerSync
+      tags: [sync]
+      summary: Force re-validation of all active links
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Dashboard summary - totals and breakdown by status
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/by-type:
+    get:
+      operationId: getStatsByType
+      tags: [stats]
+      summary: Video counts grouped by source type
+      responses:
+        "200":
+          description: Stats by source type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TypeBreakdown"
+
+  /stats/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [stats]
+      summary: Recent proxy access and sync events
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Recent activity log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityEvent"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +263,189 @@ components:
       required:
         - status
 
+    Video:
+      type: object
+      required: [id, slug, title, source_type, status, proxy_url, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        source_type:
+          type: string
+          enum: [cdn, platform, storage, selfhosted]
+        status:
+          type: string
+          enum: [active, broken, unknown]
+        mime_type:
+          type: ["string", "null"]
+        content_length:
+          type: ["integer", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        fallback_url:
+          type: ["string", "null"]
+        proxy_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    VideoInput:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        fallback_url:
+          type: ["string", "null"]
+
+    VideoUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        fallback_url:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, broken, unknown]
+
+    VideoListResponse:
+      type: object
+      required: [videos, total, page, limit]
+      properties:
+        videos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Video"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    VideoStats:
+      type: object
+      required: [id, slug, title, total_requests, recent_accesses]
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        total_requests:
+          type: integer
+        bytes_served:
+          type: ["integer", "null"]
+        last_accessed:
+          type: ["string", "null"]
+          format: date-time
+        recent_accesses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccessLog"
+
+    AccessLog:
+      type: object
+      required: [id, accessed_at]
+      properties:
+        id:
+          type: integer
+        ip:
+          type: ["string", "null"]
+        user_agent:
+          type: ["string", "null"]
+        bytes:
+          type: ["integer", "null"]
+        accessed_at:
+          type: string
+          format: date-time
+
+    SyncResult:
+      type: object
+      required: [total, synced, failed, started_at]
+      properties:
+        total:
+          type: integer
+        synced:
+          type: integer
+        failed:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+
+    StatsSummary:
+      type: object
+      required: [total, active, broken, unknown, total_requests]
+      properties:
+        total:
+          type: integer
+        active:
+          type: integer
+        broken:
+          type: integer
+        unknown:
+          type: integer
+        total_requests:
+          type: integer
+
+    TypeBreakdown:
+      type: object
+      required: [source_type, count]
+      properties:
+        source_type:
+          type: string
+        count:
+          type: integer
+
+    ActivityEvent:
+      type: object
+      required: [id, event_type, slug, title, occurred_at]
+      properties:
+        id:
+          type: integer
+        event_type:
+          type: string
+          enum: [proxy_access, sync_ok, sync_broken, sync_redirected]
+        slug:
+          type: string
+        title:
+          type: string
+        detail:
+          type: ["string", "null"]
+        occurred_at:
+          type: string
+          format: date-time
+
+    ApiError:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        suggestion:
+          type: ["string", "null"]

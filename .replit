@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -18,3 +18,20 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+API_KEY = "vpx_7YMW20Fu6xsRblmt2FGJzSPz9rt6aWeHentV"
+VITE_API_KEY = "vpx_7YMW20Fu6xsRblmt2FGJzSPz9rt6aWeHentV"
+
+[nix]
+channel = "stable-25_05"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 18478
+externalPort = 3000
